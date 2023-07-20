@@ -1,0 +1,63 @@
+# Directory Structure Format
+.
+├── fold_0
+│   ├── model.fold_0.encid.tar # full bpnet model in SavedModel format (Use for all biological discovery)
+    ├── logs.models.fold_0.encid
+        ├──logfile.modelling.fold_0.encid.txt
+
+│
+├── fold_1
+│   └── ...                                           # similar directory structure as fold_0 directory above
+│
+├── fold_2
+│   └── ...                                           # similar directory structure as fold_0 directory above
+│
+├── fold_3
+│   └── ...                                           # similar directory structure as fold_0 directory above
+│
+└── fold_4
+    └── ...                                           # similar directory structure as fold_0 directory above
+
+
+# Pseudocode for loading models in .tar format
+
+(1) First untar the each model_fold.tar file as follows `tar -xvf model.tar`
+(2) Use the code in python after appropriately defining `model_dir_untared` and `inputs`
+
+```
+import tensorflow as tf
+model = tf.saved_model.load('model_dir_untared')
+predictions = model.signatures['serving_default'](**{
+               'profile_bias_input_0':profile_bias_input.astype('float32'),    
+               'counts_bias_input_0' :counts_bias_input.astype('float32'),
+               'sequence':sequence.astype('float32')})
+               
+# sequence - one hot encoded sequence of shape (number of tested sequences, input sequence length (2114), ACGT (4))
+# counts_bias_input - log2 of total counts values of each region from WCE/Input DNA control or can be zeroes(number of tested sequences, output length (1000), number of strands(2))
+# counts_bias_input - per base profile bias values from WCE/Input DNA control or can be zeroes(number of tested sequences, number of strands(2))
+
+# Predictions can be converted into per base signal for both the strands using:
+
+# output_len = 1000
+def vectorized_prediction_to_profile(predictions):
+        logits_arr = predictions['profile_predictions']
+        counts_arr = predictions['logcounts_predictions']
+        pred_profile_logits = np.reshape(logits_arr,[-1,1,output_len*2])
+        probVals_array = np.exp(pred_profile_logits-logsumexp(pred_profile_logits,axis=2).reshape([len(logits_arr),1,1]))
+        profile_predictions = np.multiply((np.exp(counts_arr)).reshape([len(counts_arr),1,1]),probVals_array)
+        plus = np.reshape(profile_predictions,[len(counts_arr),output_len,2])[:,:,0]
+        minus = np.reshape(profile_predictions,[len(counts_arr),output_len,2])[:,:,1]
+        return(plus,minus,counts_arr)
+    
+plus,minus,logcounts_arr = vectorized_prediction_to_profile(predictions)
+
+
+```
+
+# Docker image to load and use the models
+
+https://hub.docker.com/r/kundajelab/bpnet
+
+# Tool box to do downstream analysis with the models
+
+https://github.com/kundajelab/bpnet/wiki
