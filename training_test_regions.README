@@ -64,6 +64,3 @@ A dictionary with following (key,value) pairs,
 2) ("train", list_of_chrs_trainingset)
 3) ("valid", list_of_chrs_validationset)
 4) ("test", list_of_chrs_testset)
-
-
-

@@ -19,7 +19,9 @@
     └── ...                                           # similar directory structure as fold_0 directory above
 
 
-# Pseudocode for loading models in .tar format
+# Pseudocode for loading models in .tar format and making predictions
+
+a) method one for loading models and making predictions
 
 (1) First untar the each model_fold.tar file as follows `tar -xvf model.tar`
 (2) Use the code in python after appropriately defining `model_dir_untared` and `inputs`
@@ -53,6 +55,46 @@ plus,minus,logcounts_arr = vectorized_prediction_to_profile(predictions)
 
 
 ```
+
+b) method two for loading models and making predictions
+
+```
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import CustomObjectScope
+import tensorflow.keras.backend as kb
+from bpnet.model.custommodel \
+    import CustomModel
+
+    
+def get_model(model_path):
+    with CustomObjectScope({"kb": kb,
+                            "tf":tf,
+                           "CustomModel":CustomModel}):
+        model = load_model(model_path)
+    return model
+    
+model = get_model(model_path='model_dir_untared')
+
+predictions = model.predict([encoded_inserted_sequences,np.zeros(output_seq_len*number_of_strands*encoded_inserted_sequences.shape[0]).reshape((encoded_inserted_sequences.shape[0],output_seq_len,number_of_strands)),np.zeros(encoded_inserted_sequences.shape[0]*number_of_strands).reshape((encoded_inserted_sequences.shape[0],number_of_strands))])
+    
+# Predictions can be converted into per base signal for both the strands using:
+
+# output_len = 1000
+def vectorized_prediction_to_profile(predictions):
+        logits_arr = predictions[0]
+        counts_arr = predictions[1]
+        pred_profile_logits = np.reshape(logits_arr,[-1,1,output_len*2])
+        probVals_array = np.exp(pred_profile_logits-logsumexp(pred_profile_logits,axis=2).reshape([len(logits_arr),1,1]))
+        profile_predictions = np.multiply((np.exp(counts_arr)).reshape([len(counts_arr),1,1]),probVals_array)
+        plus = np.reshape(profile_predictions,[len(counts_arr),output_len,2])[:,:,0]
+        minus = np.reshape(profile_predictions,[len(counts_arr),output_len,2])[:,:,1]
+        return(plus,minus,counts_arr)
+    
+plus,minus,logcounts_arr = vectorized_prediction_to_profile(predictions)
+
+```
+
 
 # Docker image to load and use the models
 
